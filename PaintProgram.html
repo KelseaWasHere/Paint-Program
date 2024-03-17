@@ -1,0 +1,558 @@
+<!DOCTYPE HTML>
+ <HTML lang = "en">
+    <head>
+        <title>
+            Paint Program
+        </title>
+		<center>
+			<h1> Paint Program </h1>
+		</center>
+
+        <script id="vertex-shader-2d" type="notjs">
+            attribute vec4 a_position;
+            attribute vec3 a_color;
+            varying vec3 v_color;
+
+            void main()
+            {
+				gl_PointSize = 5.0;
+                gl_Position = a_position;
+                v_color = a_color;
+            }
+        </script>
+
+        <script id="fragment-shader-2d" type="notjs">
+            precision mediump float;
+            varying vec3 v_color;
+
+            void main()
+            {
+                gl_FragColor = vec4(v_color, 1);
+            }
+        </script>
+
+        <script>
+            class InitWebGLProgram
+            {
+                constructor()
+                {
+                    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+                    gl.clearColor(0, 0, 0, 0);
+                    gl.clear(gl.COLOR_BUFFER_BIT);
+                }
+
+                createShader(type, source)
+                {
+                    var shader = gl.createShader(type);
+                    gl.shaderSource(shader, source);
+                    gl.compileShader(shader);
+                    var success = gl.getShaderParameter(shader, gl.COMPILE_STATUS);
+                    if (success)
+                    {
+                        return shader;
+                    }
+                }
+
+                createProgram(vertexShader, fragmentShader)
+                {
+                    var program = gl.createProgram();
+                    gl.attachShader(program, vertexShader);
+                    gl.attachShader(program, fragmentShader);
+                    gl.linkProgram(program);
+                    var success = gl.getProgramParameter(program, gl.LINK_STATUS);
+                    if (success)
+                    {
+                        return program;
+                    }
+
+                    console.log(gl.getProgramInfoLog(program));
+                    gl.deleteProgram(program);
+                }
+            }
+			
+			class shape
+			{
+				constructor()
+				{
+					this.positions = [];
+					this.positionBuffer = gl.createBuffer();
+					this.vertCount = 0;
+					this.isDone = false;
+					
+					var shapeDropDown = document.getElementById("shapeType");
+					var colorDropDown = document.getElementById("color");
+					var drawStyleDropDown = document.getElementById("drawType");
+					this.selectedShapeType = shapeDropDown.value;
+					this.color = [0, 0, 0];
+					this.setColor(colorDropDown.value);
+					this.drawType = drawStyleDropDown.value;
+				}
+				
+				setColor(color) {
+					const hexToRgb = (hex) => {
+						const bigint = parseInt(hex.slice(1), 16);
+						const r = (bigint >> 16) & 255;
+						const g = (bigint >> 8) & 255;
+						const b = bigint & 255;
+						return [r / 255, g / 255, b / 255];
+					};
+
+					if (color.startsWith('#')) {
+						this.color = hexToRgb(color);
+					} else {
+						switch (color) {
+							case 'red':
+								this.color = [1, 0, 0];
+								break;
+							case 'yellow':
+								this.color = [1, 1, 0];
+								break;
+							case 'blue':
+								this.color = [0, 0, 1];
+								break;
+							case 'green':
+								this.color = [0, 1, 0];
+								break;
+							case 'black':
+								this.color = [0, 0, 0];
+								break;
+							case 'white':
+								this.color = [1, 1, 1];
+								break;
+							default:
+								this.color = [1, 1, 1];
+						}
+					}
+				}
+
+				
+				addPointBox(x, y) {
+					if (this.vertCount >= 1)
+					{
+						const initialX = this.positions[0];
+						const initialY = this.positions[1];
+
+						this.positions.push(x);   			
+						this.positions.push(initialY);
+						this.positions.push(this.color[0]);
+						this.positions.push(this.color[1]);
+						this.positions.push(this.color[2]);
+
+						this.positions.push(x);          
+						this.positions.push(y);
+						this.positions.push(this.color[0]);
+						this.positions.push(this.color[1]);
+						this.positions.push(this.color[2]);
+						
+						
+						this.positions.push(initialX);   	
+						this.positions.push(y);
+						this.positions.push(this.color[0]);
+						this.positions.push(this.color[1]);
+						this.positions.push(this.color[2]);
+		
+						this.vertCount += 3;
+						this.isDone = true;
+					} else {
+						this.positions.push(x); 
+						this.positions.push(y);
+						this.positions.push(this.color[0]);
+						this.positions.push(this.color[1]);
+						this.positions.push(this.color[2]);
+						this.vertCount++;
+					}
+					gl.bindBuffer(gl.ARRAY_BUFFER, this.positionBuffer);
+                    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this.positions), gl.STATIC_DRAW);
+				}
+				
+				addPointLine(x, y) {
+					this.positions.push(x);
+					this.positions.push(y);
+					this.positions.push(this.color[0]);
+					this.positions.push(this.color[1]);
+					this.positions.push(this.color[2]);
+
+                    gl.bindBuffer(gl.ARRAY_BUFFER, this.positionBuffer);
+                    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this.positions), gl.STATIC_DRAW);
+					
+					this.vertCount++;
+					if (this.vertCount >= 2)
+					{
+						this.isDone = true;
+					}
+				}
+				
+				addPointCircle(x, y) {
+					if (this.vertCount >= 1)
+					{
+						const initialX = this.positions[0];
+						const initialY = this.positions[1];
+						this.positions = [];
+						this.vertCount--;
+						const radius = Math.sqrt((x - initialX) ** 2 + (y - initialY) ** 2);
+						
+						for (let i = 0; i < 50; i++) {
+							const angle = (Math.PI * 2 * i) / 50;
+							const newX = initialX + radius * Math.cos(angle);
+							const newY = initialY + radius * Math.sin(angle);
+
+							this.positions.push(newX);
+							this.positions.push(newY);
+							this.positions.push(this.color[0]);
+							this.positions.push(this.color[1]);
+							this.positions.push(this.color[2]);
+						}
+						
+		
+						this.vertCount += 50;
+						this.isDone = true;
+					} else {
+						this.positions.push(x);
+						this.positions.push(y);
+						this.positions.push(this.color[0]);
+						this.positions.push(this.color[1]);
+						this.positions.push(this.color[2]);
+						this.vertCount++;
+					}
+					gl.bindBuffer(gl.ARRAY_BUFFER, this.positionBuffer);
+                    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this.positions), gl.STATIC_DRAW);
+				}
+				
+				addPointTriangle(x, y) {
+					this.positions.push(x);
+					this.positions.push(y);
+					this.positions.push(this.color[0]);
+					this.positions.push(this.color[1]);
+					this.positions.push(this.color[2]);
+
+                    gl.bindBuffer(gl.ARRAY_BUFFER, this.positionBuffer);
+                    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this.positions), gl.STATIC_DRAW);
+					
+					this.vertCount++;
+					if (this.vertCount >= 3)
+					{
+						this.isDone = true;
+					}
+				}
+				
+				addPointNPolygon(x, y) {
+					this.positions.push(x);
+					this.positions.push(y);
+					this.positions.push(this.color[0]);
+					this.positions.push(this.color[1]);
+					this.positions.push(this.color[2]);
+
+                    gl.bindBuffer(gl.ARRAY_BUFFER, this.positionBuffer);
+                    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this.positions), gl.STATIC_DRAW);
+					
+					this.vertCount++;
+				}
+				
+				addTempPoint(x,y)
+				{
+					this.positions.push(x);
+					this.positions.push(y);
+					this.positions.push(0.2) //R
+					this.positions.push(0.2) //G
+					this.positions.push(1) //B
+					this.drawType = 'outline';
+
+					this.vertCount++;
+					
+                    gl.bindBuffer(gl.ARRAY_BUFFER, this.positionBuffer);
+                    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this.positions), gl.STATIC_DRAW);
+				}
+
+				removeTempPoint()
+				{
+					for(let i = 0; i < 5; i++)
+					{
+						this.positions.pop()
+					}
+					this.vertCount--;
+					var drawStyleDropDown = document.getElementById("drawType");
+					this.drawType = drawStyleDropDown.value;
+                    gl.bindBuffer(gl.ARRAY_BUFFER, this.positionBuffer);
+                    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this.positions), gl.STATIC_DRAW);
+				}
+
+				addPoint(x, y)
+				{
+					switch (this.selectedShapeType) {
+						case 'box':
+							this.addPointBox(x,y);
+							break;
+						case 'line':
+							this.addPointLine(x,y);
+							break;
+						case 'circle':
+							this.addPointCircle(x,y);
+							break;
+						case 'triangle':
+							this.addPointTriangle(x,y);
+							break;
+						case 'nPolygon':
+							this.addPointNPolygon(x,y);
+							break;
+						default:
+							this.addPointBox;
+					}
+				}
+
+				render(program)
+				{
+                    var positionAttributeLocation = gl.getAttribLocation(program, "a_position");
+                    var colorAttributeLocation = gl.getAttribLocation(program, "a_color");
+
+                    gl.enableVertexAttribArray(positionAttributeLocation);
+                    gl.enableVertexAttribArray(colorAttributeLocation);
+
+                    gl.bindBuffer(gl.ARRAY_BUFFER, this.positionBuffer);
+                    var size = 2;
+                    var type = gl.FLOAT;
+                    var normalize = false;
+                    var stride = 5 * Float32Array.BYTES_PER_ELEMENT;
+                    var offset = 0 * Float32Array.BYTES_PER_ELEMENT;
+                    gl.vertexAttribPointer(positionAttributeLocation, size, type, normalize, stride, offset)
+                    
+
+                    var size = 3;
+                    var type = gl.FLOAT;
+                    var normalize = false;
+                    var stride = 5 * Float32Array.BYTES_PER_ELEMENT;
+                    var offset = 2 * Float32Array.BYTES_PER_ELEMENT;
+                    gl.vertexAttribPointer(colorAttributeLocation, size, type, normalize, stride, offset)
+
+                    var primitiveType;
+					switch (this.selectedShapeType) {
+						case 'box':
+							if (this.drawType == 'outline') {
+								primitiveType = gl.LINE_LOOP;
+							} else {
+								primitiveType = gl.TRIANGLE_FAN;
+							}
+							break;
+						case 'line':
+							primitiveType = gl.LINE_STRIP;
+							break;
+						case 'circle':
+							if (this.drawType == 'outline') {
+								primitiveType = gl.LINE_LOOP;
+							} else {
+								primitiveType = gl.TRIANGLE_FAN;
+							}
+							break;
+						case 'triangle':
+							if (this.drawType == 'outline') {
+								primitiveType = gl.LINE_LOOP;
+							} else {
+								primitiveType = gl.TRIANGLES;
+							}
+							break;
+						case 'nPolygon':
+							if (this.drawType == 'outline') {
+								primitiveType = gl.LINE_LOOP;
+							} else {
+								primitiveType = gl.TRIANGLE_FAN;
+							}
+							break;
+						default:
+							primitiveType = gl.LINE_LOOP;
+					}
+					
+                    var offset = 0;
+                    /// var count = 3;
+                    gl.drawArrays(primitiveType, offset, this.vertCount);
+				}
+			}
+			
+
+            class main
+            {
+                constructor()
+                {
+                    this.webGL = new InitWebGLProgram();
+
+                    this.vertexShaderSource = document.getElementById("vertex-shader-2d").text;
+                    this.fragmentShaderSource = document.getElementById("fragment-shader-2d").text;
+
+                    this.vertexShader = this.webGL.createShader(gl.VERTEX_SHADER, this.vertexShaderSource);
+                    this.fragmentShader = this.webGL.createShader(gl.FRAGMENT_SHADER, this.fragmentShaderSource);
+
+                    this.program = this.webGL.createProgram(this.vertexShader, this.fragmentShader);
+
+                    gl.useProgram(this.program);
+					
+					document.getElementById('shapeType').addEventListener('change', (event) => {
+						this.selectedShapeType = event.target.value;
+					});
+
+					document.getElementById('color').addEventListener('input', (event) => {
+						this.selectedColor = event.target.value;
+					});
+
+					document.getElementById('drawType').addEventListener('change', (event) => {
+						this.selectedDrawType = event.target.value;
+					});
+					
+					this.selectedShapeType = 'box';
+					this.selectedColor = 'red';
+					this.selectedDrawType = 'outline';
+
+					this.shapes = [];
+                }
+
+				canvasHandle(event)
+				{
+					var rect = canvas.getBoundingClientRect();
+					var realX = event.clientX - rect.left;
+					var realY = event.clientY - rect.top;
+					var x = -1 + 2*realX/myCanvas.width;
+					var y = -1 + 2*(myCanvas.height - realY)/myCanvas.height;
+					
+					//make new object if triangle is done
+					if (this.shapes.length == 0 || this.shapes[this.shapes.length - 1].isDone)
+					{
+						this.shapes.push(new shape());
+					}
+					
+					this.shapes[this.shapes.length - 1].addPoint(x,y);
+					this.renderAll();
+				}
+
+				canvasMove(event)
+				{
+					var rect = canvas.getBoundingClientRect();
+					var realX = event.clientX - rect.left;
+					var realY = event.clientY - rect.top;
+					var x = -1 + 2*realX/myCanvas.width;
+					var y = -1 + 2*(myCanvas.height - realY)/myCanvas.height;
+
+					if (this.shapes.length > 0) {
+						if (this.shapes[this.shapes.length - 1].selectedShapeType === 'box') {
+							if (!this.shapes[this.shapes.length - 1].isDone) {
+								const initialX = this.shapes[this.shapes.length - 1].positions[0];
+								const initialY = this.shapes[this.shapes.length - 1].positions[1];
+								this.shapes[this.shapes.length - 1].addTempPoint(x, initialY);
+								this.shapes[this.shapes.length - 1].addTempPoint(x, y);
+								this.shapes[this.shapes.length - 1].addTempPoint(initialX, y);
+								this.renderAll();
+								for (let i = 0; i < 3; i++) {
+									this.shapes[this.shapes.length - 1].removeTempPoint();
+								}
+							}
+						} else if (this.shapes[this.shapes.length - 1].selectedShapeType === 'circle') {
+							if (!this.shapes[this.shapes.length - 1].isDone) {
+								const initialX = this.shapes[this.shapes.length - 1].positions[0];
+								const initialY = this.shapes[this.shapes.length - 1].positions[1];
+								const radius = Math.sqrt((x - initialX) ** 2 + (y - initialY) ** 2);
+								
+								this.shapes[this.shapes.length - 1].removeTempPoint();
+								for (let i = 0; i < 50; i++) {
+									const angle = (Math.PI * 2 * i) / 50;
+									const newX = initialX + radius * Math.cos(angle);
+									const newY = initialY + radius * Math.sin(angle);
+
+									this.shapes[this.shapes.length - 1].addTempPoint(newX, newY);
+								}
+								
+								this.renderAll();
+								for (let i = 0; i < 50; i++) {
+									this.shapes[this.shapes.length - 1].removeTempPoint();
+								}
+								this.shapes[this.shapes.length - 1].addPointCircle(initialX, initialY);
+							}
+						} else {
+							if (!this.shapes[this.shapes.length - 1].isDone) {
+								this.shapes[this.shapes.length - 1].addTempPoint(x, y);
+								this.renderAll();
+								this.shapes[this.shapes.length - 1].removeTempPoint();
+							}
+						}
+					}
+				}
+				
+				canvasRightClick(event) {
+					event.preventDefault();
+					
+					var rect = canvas.getBoundingClientRect();
+					var realX = event.clientX - rect.left;
+					var realY = event.clientY - rect.top;
+					var x = -1 + 2*realX/myCanvas.width;
+					var y = -1 + 2*(myCanvas.height - realY)/myCanvas.height;
+					
+					
+					if (this.shapes.length > 0) {
+						const currentShape = this.shapes[this.shapes.length - 1];
+						if (currentShape.selectedShapeType === 'nPolygon') {
+							if (currentShape.vertCount > 2) {
+								currentShape.isDone = true;
+							}
+						}
+					}
+					
+					this.renderAll();
+				}
+
+				renderAll()
+				{
+					gl.clear(gl.COLOR_BUFFER_BIT);
+					for (let shape of this.shapes) {
+						shape.render(this.program);
+					}
+				}
+
+				static mouseH(event)
+				{
+					m.canvasHandle(event);
+				}
+
+				static mouseM(event)
+				{
+					m.canvasMove(event);
+				}
+				
+				static mouseRC(event) {
+					m.canvasRightClick(event);
+				}
+				
+            }
+        </script>
+    </head>
+    <body>
+        <canvas id = "myCanvas" width = "750" height="450" style = "position: absolute; top: auto; left: 0px; right: 0px; bottom: auto; margin: auto; border: 1px solid #000000; margin-top: 20px;">
+        </canvas>
+		<div>
+			<label for="shapeType">Shape:</label>
+			<select name="shapeType" id="shapeType">
+				<option value="box">Box</option>
+				<option value="line">Line</option>
+				<option value="circle">Circle</option>
+				<option value="triangle">Triangle</option>
+				<option value="nPolygon">N-Polygon</option>
+			</select>
+		</div>
+		<h3> </h3>
+		<div>
+			<label for="color">Color:</label>
+			<input type="color" id="color" value="#ff0000">
+		</div>
+		<h3> </h3>
+		<div>
+			<label for="drawType">Style:</label>
+			<select name="drawType" id="drawType">
+				<option value="outline">Outline</option>
+				<option value="fill">Fill</option>
+			</select>
+		</div>
+        <script>
+            var canvas = document.getElementById("myCanvas");
+            var gl = canvas.getContext("webgl");
+
+			canvas.addEventListener("click",main.mouseH);
+			canvas.addEventListener("mousemove", main.mouseM);
+			canvas.addEventListener("contextmenu", main.mouseRC);
+            var m = new main();
+        </script>
+    </body>
+ </HTML>
